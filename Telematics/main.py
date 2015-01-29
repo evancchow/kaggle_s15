@@ -18,15 +18,30 @@ def parse_data(file):
 			data.append(np.asarray([float(item['x']), float(item['y'])]))
 	return data
 
-#Returns the average speed of the path.
-def get_speed(data):
+#Returns the average and max speeds of the path.
+def get_speed_features(data):
 	speeds = []
 	length = len(data)
 	ctr = 0
 	while ctr < length-1:
 		speeds.append(norm(data[ctr] - data[ctr+1]))
 		ctr += 1
-	return np.average(speeds)
+	return [np.average(speeds), max(speeds)]
+
+def get_length(data):
+	return [len(data)]
+
+def get_distance(data):
+	start = data[0]
+	end = data[-1]
+	return [norm(start-end)]
+
+def get_features(data):
+	speed_features = get_speed_features(data)
+	length = get_length(data)
+	dist = get_distance(data)
+	features = speed_features + length + dist
+	return features
 
 def get_driver_list():
 	driver_list = []
@@ -44,8 +59,8 @@ def get_training_set(driver_number, num_false):
 
 	for file in listdir(path):
 		data = parse_data(path+file)
-		speed = get_speed(data)
-		training_set.append([speed])
+		features = get_features(data)
+		training_set.append(features)
 		training_output.append(1)
 
 	driver_list = get_driver_list()
@@ -58,8 +73,8 @@ def get_training_set(driver_number, num_false):
 
 		for file in listdir(false_path):
 			false_data = parse_data(path+file)
-			false_speed = get_speed(false_data)
-			training_set.append([false_speed])
+			false_features = get_features(data)
+			training_set.append(false_features)
 			training_output.append(0)
 
 		driver_list.remove(false_driver_num)
@@ -69,9 +84,9 @@ def get_training_set(driver_number, num_false):
 
 ts = get_training_set(1,5)
 #A natural first step is to implement a logistic regressor, since we want to output probability.
-#model = LogisticRegression()
+model = LogisticRegression()
 #model = GradientBoostingRegressor()
-model = SGDRegressor()
+#model = SGDRegressor()
 model.fit(ts[0], ts[1])
 prediction = model.predict(ts[0])
 print prediction[:-10]
