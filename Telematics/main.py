@@ -4,6 +4,9 @@ from numpy.linalg import norm
 import os
 from os import listdir
 import random
+from sklearn.linear_model import LogisticRegression, SGDRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+
 
 DATA_PATH = "./data/drivers/"
 
@@ -37,11 +40,13 @@ def get_driver_list():
 def get_training_set(driver_number, num_false):
 	path = DATA_PATH+str(driver_number) + "/"
 	training_set = []
+	training_output = []
 
 	for file in listdir(path):
 		data = parse_data(path+file)
 		speed = get_speed(data)
-		training_set.append([speed,1])
+		training_set.append([speed])
+		training_output.append(1)
 
 	driver_list = get_driver_list()
 	driver_list.remove(driver_number)
@@ -54,13 +59,22 @@ def get_training_set(driver_number, num_false):
 		for file in listdir(false_path):
 			false_data = parse_data(path+file)
 			false_speed = get_speed(false_data)
-			training_set.append([false_speed, 0])
+			training_set.append([false_speed])
+			training_output.append(0)
 
 		driver_list.remove(false_driver_num)
 		ctr += 1
 
-	return training_set
+	return training_set, training_output
 
-ts = get_training_set(1,2)
+ts = get_training_set(1,5)
+#A natural first step is to implement a logistic regressor, since we want to output probability.
+#model = LogisticRegression()
+#model = GradientBoostingRegressor()
+model = SGDRegressor()
+model.fit(ts[0], ts[1])
+prediction = model.predict(ts[0])
+print prediction[:-10]
+print prediction[:20]
 
 
