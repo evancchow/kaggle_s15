@@ -4,8 +4,9 @@ from numpy.linalg import norm
 import os
 from os import listdir
 import random
-from sklearn.linear_model import LogisticRegression, SGDRegressor
+from sklearn.linear_model import LogisticRegression, SGDRegressor, Lasso, ElasticNet
 from sklearn.ensemble import GradientBoostingRegressor
+import datetime
 
 
 DATA_PATH = "./data/drivers/"
@@ -171,6 +172,46 @@ def get_training_set(driver_number, num_false):
 
 	return training_set, training_output
 
+def generate_submission_file(num_false):
+	driver_list = get_driver_list()
+	predictions = {}
+	#driver_list = [1, 2, 3]
+	for driver_number in driver_list:
+		print "Training on:"+str(driver_number)
+		ts = get_training_set(driver_number,num_false)
+		'''
+		path = DATA_PATH+str(driver_number) + "/"
+		for file in listdir(path):
+			data = parse_data(path+file)
+			features = get_features(data)
+			training_set.append(features)
+			training_output.append(1)
+		'''
+
+		#model = GradientBoostingRegressor()
+		model = LogisticRegression()
+		#model = SGDRegressor()
+		#model = Lasso()
+		#model = ElasticNet()
+		model.fit(ts[0], ts[1])
+		predictions[str(driver_number)] = (model.predict(ts[0][:200]))
+
+	print predictions
+	with open('submission.csv', 'w') as csvfile:
+		fieldnames = ['driver_trip', 'prob']
+		writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+		writer.writeheader()
+
+		for driver_number in driver_list:
+			print "Writing:"+str(driver_number)
+			ctr = 0
+			while ctr < 200:
+				writer.writerow({'driver_trip': str(driver_number)+'_'+str(ctr+1), 'prob':predictions[str(driver_number)][ctr]})
+				ctr += 1
+
+generate_submission_file(5)
+
+'''
 ts = get_training_set(1,5)
 #A natural first step is to implement a logistic regressor, since we want to output probability.
 #model = LogisticRegression()
@@ -180,5 +221,6 @@ model.fit(ts[0], ts[1])
 prediction = model.predict(ts[0])
 print prediction[:-10]
 print prediction[:20]
+'''
 
 
