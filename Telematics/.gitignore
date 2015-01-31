@@ -1,2 +1,7 @@
 data/*
+drivers.zip
+explore.ipynb
+*.pyc
+.ipynb_checkpoints/*
 .DS_Store
+*.csv
