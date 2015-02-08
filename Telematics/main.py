@@ -6,9 +6,10 @@ from os import listdir
 import random
 from sklearn.linear_model import LogisticRegression, SGDRegressor, Lasso, ElasticNet
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn import preprocessing
 import datetime
 
-
+start = datetime.datetime.now()
 DATA_PATH = "./data/drivers/"
 
 def parse_data(file):
@@ -136,7 +137,8 @@ def get_features(data):
 def get_driver_list():
 	driver_list = []
 	for item in listdir(DATA_PATH):
-		driver_list.append(int(item))
+		if not (item == ".DS_Store"):
+			driver_list.append(int(item))
 	return driver_list
 
 #Generates training set.  All data associated with a given driver is assumed to be from that driver.
@@ -150,6 +152,7 @@ def get_training_set(driver_number, num_false):
 	for file in listdir(path):
 		data = parse_data(path+file)
 		features = get_features(data)
+		#features = [len(data)]
 		training_set.append(features)
 		training_output.append(1)
 
@@ -159,11 +162,13 @@ def get_training_set(driver_number, num_false):
 	ctr = 0
 	while ctr < num_false:
 		false_driver_num = random.choice(driver_list)
+		print "FD"+str(false_driver_num)
 		false_path = DATA_PATH + str(false_driver_num) + "/"
 
 		for file in listdir(false_path):
-			false_data = parse_data(path+file)
-			false_features = get_features(data)
+			false_data = parse_data(false_path+file)
+			false_features = get_features(false_data)
+			#false_features = [len(false_data)]
 			training_set.append(false_features)
 			training_output.append(0)
 
@@ -174,11 +179,15 @@ def get_training_set(driver_number, num_false):
 
 def generate_submission_file(num_false):
 	driver_list = get_driver_list()
+	print len(driver_list)
 	predictions = {}
-	#driver_list = [1, 2, 3]
+	#driver_list = [1]
 	for driver_number in driver_list:
-		print "Training on:"+str(driver_number)
+		print "GB training on:"+str(driver_number)
 		ts = get_training_set(driver_number,num_false)
+		f = open('ts.txt','wb')
+		f.write(str(ts))
+
 		'''
 		path = DATA_PATH+str(driver_number) + "/"
 		for file in listdir(path):
@@ -188,16 +197,17 @@ def generate_submission_file(num_false):
 			training_output.append(1)
 		'''
 
-		#model = GradientBoostingRegressor()
-		model = LogisticRegression()
+		model = GradientBoostingRegressor()
+		#model = LogisticRegression()
 		#model = SGDRegressor()
 		#model = Lasso()
 		#model = ElasticNet()
+		#ts_scaled = (preprocessing.scale(ts[0]), ts[1])
 		model.fit(ts[0], ts[1])
 		predictions[str(driver_number)] = (model.predict(ts[0][:200]))
 
 	print predictions
-	with open('submission.csv', 'w') as csvfile:
+	with open('submission_en.csv', 'w') as csvfile:
 		fieldnames = ['driver_trip', 'prob']
 		writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 		writer.writeheader()
@@ -210,7 +220,7 @@ def generate_submission_file(num_false):
 				ctr += 1
 
 generate_submission_file(5)
-
+print datetime.datetime.now() - start
 '''
 ts = get_training_set(1,5)
 #A natural first step is to implement a logistic regressor, since we want to output probability.
