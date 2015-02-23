@@ -1,2 +1,10 @@
 data/*
+submissions/*
+test_sandbox/*
+prev_models/*
+example_code/*
+intermediate/*
+*.R
+*.Rapp.history
+*.pyc
 .DS_Store
