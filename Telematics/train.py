@@ -16,7 +16,7 @@ from parser import *
 MODEL_LIST = ['gbr', 'lr', 'sgd', 'en', 'lasso', 'rf']
 MODEL_CHOICE = 'gbr'
 
-do_cv = True
+do_cv = False
 
 def train_main(driver_number, reference, num_false):
 	reference_drivers = reference[2]

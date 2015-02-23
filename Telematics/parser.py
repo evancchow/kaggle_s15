@@ -43,7 +43,7 @@ def get_reference_data(num_false):
 	ctr = 0
 	while ctr < num_false:
 		false_driver_num = random.choice(driver_list)
-		print "FD"+str(false_driver_num)
+		print "False driver:"+str(false_driver_num)
 		false_path = DATA_PATH + str(false_driver_num) + "/"
 
 		reference_drivers.append(false_driver_num)

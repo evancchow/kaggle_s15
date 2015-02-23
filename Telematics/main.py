@@ -46,23 +46,24 @@ def generate_submission_file(num_false):
 	driver_list = get_driver_list()
 	reference = get_reference_data(num_false)
 
-	driver_list = [1,2,3,4,5]
+	#driver_list = [1]
 	#print len(driver_list)
 	
 	rocs = []
 	#CV code
+	'''
 	for driver_num in driver_list:
 		roc = train_main(driver_num, reference, num_false)
 		rocs.append(roc)
-
 	with open('CV_log.txt', 'w') as f:
 		f.write(np.mean(rocs))
 		f.write('\n')
 		f.write(driver_list)
 		f.write('\n')
 		f.write(FEATURE_CHOICE)
+	'''
 	
-	#predictions = Parallel(n_jobs=20)(delayed(train)(driver_num, reference, num_false) for driver_num in driver_list)
+	predictions = Parallel(n_jobs=20)(delayed(train_main)(driver_num, reference, num_false) for driver_num in driver_list)
 	predictions = reduce(lambda x,y: dict(x.items() + y.items()), predictions)
 
 	#print predictions
