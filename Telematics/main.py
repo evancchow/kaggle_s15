@@ -87,7 +87,7 @@ def generate_submission_file(num_false):
 				writer.writerow({'driver_trip': str(driver_number)+'_'+trip_indices[ctr], 'prob':predictions[str(driver_number)][ctr]})
 				ctr += 1
 
-generate_submission_file(1)
+generate_submission_file(5)
 print datetime.datetime.now() - start
 '''
 ts = get_training_set(1,5)
