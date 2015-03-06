@@ -3,27 +3,28 @@ import numpy as np
 from numpy.linalg import norm
 import os
 from os import listdir
-import random
+import random, math
 from sklearn.linear_model import LogisticRegression, SGDRegressor, Lasso, ElasticNet
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn import preprocessing
 import datetime
 
 start = datetime.datetime.now()
-DATA_PATH = "./data/drivers/"
+# DATA_PATH = "./data/drivers/"
+DATA_PATH = "./"
 
 def parse_data(file):
-	data = []
-	with open(file) as f:
-		reader = csv.DictReader(f)
-		for item in reader:
-			data.append(np.asarray([float(item['x']), float(item['y'])]))
-	return data
+    data = []
+    with open(file) as f:
+        reader = csv.DictReader(f)
+        for item in reader:
+            data.append(np.asarray([float(item['x']), float(item['y'])]))
+    return data
 
 #From SciPy cookbook
 def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
-    The Savitzky-Golay filter removes high frequency noise from data.
+    The Savitzky-Golay filwter removes high frequency noise from data.
     It has the advantage of preserving the original shape and
     features of the signal better than other types of filtering
     approaches, such as moving averages techniques.
@@ -95,142 +96,197 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
 
 #Returns the average and max speeds of the path.
 def get_speed_features(data):
-	speeds = []
-	length = len(data)
-	ctr = 0
-	while ctr < length-1:
-		speeds.append(norm(data[ctr] - data[ctr+1]))
-		ctr += 1
-	return [np.average(speeds), max(speeds)]
+    speeds = []
+    length = len(data)
+    ctr = 0
+    while ctr < length-1:
+        speeds.append(norm(data[ctr] - data[ctr+1]))
+        ctr += 1
+    return [np.average(speeds), max(speeds)]
 
 def get_length(data):
-	return [len(data)]
+    return [len(data)]
 
 def get_distance(data):
-	start = data[0]
-	end = data[-1]
-	return [norm(start-end)]
+    start = data[0]
+    end = data[-1]
+    return [norm(start-end)]
+
+def getAngles(data):
+    # Helper function to get the turning angles for a driver's journey.
+    v = 0;
+    angles = []
+    while v < len(data[:-2]):
+        p1, p2, p3 = data[v], data[v+1], data[v+2];
+        # p2 is starting point (or corner) of both vectors
+        v1, v2 = p1 - p2, p3 - p2;
+        
+        # if no change in position, move on
+        if (sum(v1) == 0 or sum(v2) == 0):
+            v += 2
+            continue
+            
+        # calculate angle from dot product
+        v1, v2 = v1 / sum(np.abs(v1)), v2 / sum(np.abs(v2)) # normalize
+        m1, m2 = np.linalg.norm(v1), np.linalg.norm(v2); # magnitudes
+        frac = (np.dot(v1, v2)) / (m1 * m2)
+        if (frac > 1): frac = 1.0 # for underflow
+        elif (frac < -1): frac = -1
+            
+        angle = math.acos(frac) * (180./math.pi) # degrees
+        if (angle > 360):
+            angle -= 360
+
+        angles.append(angle)
+        v += 1
+    return angles
+
+def get_turnMetrics(data):
+    # Return mean and standard deviation of the turn angles.
+    angles = getAngles(data)
+    return [sum(angles) / len(angles), np.std(angles)]
+
+def get_centroidDistSeries(data):
+    # Return normalized time series that measures how far the driver is from
+    # the centroid at each time step. Note that for fairly linear paths this
+    # may have a dip when the driver is close to the centroid, while for more
+    # circular trajectories the there may be no such dips if all points are
+    # approximately the same distance away.
+    # Thought: measure volatility and compare between different time series.
+
+    data_arr = np.asarray(data)
+    x_centroid, y_centroid = np.mean(data_arr[:,0]), np.mean(data_arr[:,1])
+    x_ts = [abs(i - x_centroid) for i in data_arr[:,0]]
+    y_ts = [abs(i - y_centroid) for i in data_arr[:,1]]
+    x_ts, y_ts = (x_ts / sum(x_ts)), (y_ts / sum(y_ts))
+    return x_ts, y_ts
+
+def get_accelerationSeries(data):
+    # Return time series that measure how fast the driver is moving each 
+    # point in time. For a time series [x1 x2 x3 ...], return the
+    # series [(x2-x1), (x3-x2), ... , (x_{n-1} - x_{n-2})].
+    data_arr = np.asarray(data)
+    x_ts, y_ts = data_arr[:,0], data_arr[:,1]
+    x_ts = [abs(x_ts[i+1] - x_ts[i]) for i in xrange(len(x_ts) - 1)]
+    y_ts = [abs(y_ts[i+1] - y_ts[i]) for i in xrange(len(y_ts) - 1)]
+    return (x_ts / sum(x_ts)), (y_ts / sum(y_ts))
 
 def get_features(data):
-	x_vals = zip(*data)[0]
-	y_vals = zip(*data)[1]
+    x_vals = zip(*data)[0]
+    y_vals = zip(*data)[1]
 
-	x_smooth = savitzky_golay(x_vals, 29, 3)
-	y_smooth = savitzky_golay(y_vals, 29, 3)
+    # smooth the data
+    x_smooth = savitzky_golay(x_vals, 29, 3)
+    y_smooth = savitzky_golay(y_vals, 29, 3)
 
-	x_len = len(x_smooth)
-	ctr = 0
+    x_len = len(x_smooth)
+    ctr = 0
 
-	smoothed_data = []
-	while ctr < x_len:
-		smoothed_data.append([x_smooth[ctr], y_smooth[ctr]])
-		ctr += 1
+    smoothed_data = []
+    while ctr < x_len:
+        smoothed_data.append([x_smooth[ctr], y_smooth[ctr]])
+        ctr += 1
 
-	data = np.asarray(smoothed_data)
+    data = np.asarray(smoothed_data)
 
-	speed_features = get_speed_features(data)
-	length = get_length(data)
-	dist = get_distance(data)
-	features = speed_features + length + dist
-	return features
+    # get the features; speed, length, distance
+    speed_features = get_speed_features(data)
+    length = get_length(data)
+    dist = get_distance(data)
+    turnFreq = get_turnMetrics(data)
+    features = speed_features + length + dist + turnFreq
+    return features
 
 def get_driver_list():
-	driver_list = []
-	for item in listdir(DATA_PATH):
-		if not (item == ".DS_Store"):
-			driver_list.append(int(item))
-	return driver_list
+    driver_list = []
+    for item in listdir(DATA_PATH):
+        # two lines below just a peculiarity for my own system's filepath
+        if not item[0].isdigit():
+            continue
+
+        if not (item == ".DS_Store"):
+            driver_list.append(int(item))
+    return driver_list
 
 #Generates training set.  All data associated with a given driver is assumed to be from that driver.
 #Then, we take num_false random other drivers and add data known to be from different drivers. 
 
 def get_training_set(driver_number, num_false):
-	path = DATA_PATH+str(driver_number) + "/"
-	training_set = []
-	training_output = []
+    path = DATA_PATH+str(driver_number) + "/"
+    training_set = []
+    training_output = []
 
-	for file in listdir(path):
-		data = parse_data(path+file)
-		features = get_features(data)
-		#features = [len(data)]
-		training_set.append(features)
-		training_output.append(1)
+    for file in listdir(path):
+        data = parse_data(path+file)
+        features = get_features(data)
+        #features = [len(data)]
+        training_set.append(features)
+        training_output.append(1)
 
-	driver_list = get_driver_list()
-	driver_list.remove(driver_number)
+    driver_list = get_driver_list()
+    driver_list.remove(driver_number)
 
-	ctr = 0
-	while ctr < num_false:
-		false_driver_num = random.choice(driver_list)
-		print "FD"+str(false_driver_num)
-		false_path = DATA_PATH + str(false_driver_num) + "/"
+    ctr = 0
+    while ctr < num_false:
+        false_driver_num = random.choice(driver_list)
+        print "FD"+str(false_driver_num)
+        false_path = DATA_PATH + str(false_driver_num) + "/"
 
-		for file in listdir(false_path):
-			false_data = parse_data(false_path+file)
-			false_features = get_features(false_data)
-			#false_features = [len(false_data)]
-			training_set.append(false_features)
-			training_output.append(0)
+        for file in listdir(false_path):
+            false_data = parse_data(false_path+file)
+            false_features = get_features(false_data)
+            #false_features = [len(false_data)]
+            training_set.append(false_features)
+            training_output.append(0)
 
-		driver_list.remove(false_driver_num)
-		ctr += 1
+        driver_list.remove(false_driver_num)
+        ctr += 1
 
-	return training_set, training_output
+    return training_set, training_output
 
 def generate_submission_file(num_false):
-	driver_list = get_driver_list()
-	print len(driver_list)
-	predictions = {}
-	#driver_list = [1]
-	for driver_number in driver_list:
-		print "GB training on:"+str(driver_number)
-		ts = get_training_set(driver_number,num_false)
-		f = open('ts.txt','wb')
-		f.write(str(ts))
+    driver_list = get_driver_list()
+    print len(driver_list)
+    print num_false
+    predictions = {}
+    # driver_list = [1, 2, 3] # for fewer drivers
+    for driver_number in driver_list:
+        print "GB training on:"+str(driver_number)
+        ts = get_training_set(driver_number,num_false)
+        f = open('ts.txt','wb')
+        f.write(str(ts))
 
-		'''
-		path = DATA_PATH+str(driver_number) + "/"
-		for file in listdir(path):
-			data = parse_data(path+file)
-			features = get_features(data)
-			training_set.append(features)
-			training_output.append(1)
-		'''
+        '''
+        path = DATA_PATH+str(driver_number) + "/"
+        for file in listdir(path):
+            data = parse_data(path+file)
+            features = get_features(data)
+            training_set.append(features)
+            training_output.append(1)
+        '''
 
-		model = GradientBoostingRegressor()
-		#model = LogisticRegression()
-		#model = SGDRegressor()
-		#model = Lasso()
-		#model = ElasticNet()
-		#ts_scaled = (preprocessing.scale(ts[0]), ts[1])
-		model.fit(ts[0], ts[1])
-		predictions[str(driver_number)] = (model.predict(ts[0][:200]))
+        model = GradientBoostingRegressor()
+        #model = LogisticRegression()
+        #model = SGDRegressor()
+        #model = Lasso()
+        #model = ElasticNet()
+        #ts_scaled = (preprocessing.scale(ts[0]), ts[1])
+        model.fit(ts[0], ts[1])
+        predictions[str(driver_number)] = (model.predict(ts[0][:200]))
 
-	print predictions
-	with open('submission_en.csv', 'w') as csvfile:
-		fieldnames = ['driver_trip', 'prob']
-		writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-		writer.writeheader()
+    # print predictions
+    with open('submission_en.csv', 'w') as csvfile:
+        fieldnames = ['driver_trip', 'prob']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
 
-		for driver_number in driver_list:
-			print "Writing:"+str(driver_number)
-			ctr = 0
-			while ctr < 200:
-				writer.writerow({'driver_trip': str(driver_number)+'_'+str(ctr+1), 'prob':predictions[str(driver_number)][ctr]})
-				ctr += 1
+        for driver_number in driver_list:
+            print "Writing:"+str(driver_number)
+            ctr = 0
+            while ctr < 200:
+                writer.writerow({'driver_trip': str(driver_number)+'_'+str(ctr+1), 'prob':predictions[str(driver_number)][ctr]})
+                ctr += 1
 
-generate_submission_file(5)
-print datetime.datetime.now() - start
-'''
-ts = get_training_set(1,5)
-#A natural first step is to implement a logistic regressor, since we want to output probability.
-#model = LogisticRegression()
-model = GradientBoostingRegressor()
-#model = SGDRegressor()
-model.fit(ts[0], ts[1])
-prediction = model.predict(ts[0])
-print prediction[:-10]
-print prediction[:20]
-'''
-
+# generate_submission_file(5)
+# print datetime.datetime.now() - start
 
